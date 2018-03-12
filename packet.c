@@ -16,7 +16,6 @@ void print_packet_info(struct packet *p)
 	printf("Seq: %d | Ack: %d | Message length: %d\n--\n", p->seq_num, p->ack_num, p->msg_len);
 }
 
-
 // Set the headers of resp to form a response to prev with a msg of len bytes
 void set_response_headers(struct packet* resp, struct packet* prev, int len)
 {

@@ -26,6 +26,12 @@ struct packet {
 	char msg[MSG_SIZE];
 };
 
+// Returns 1 if resp acknowledges prev, otherwise 0
+static inline int is_ack_for(struct packet* resp, struct packet* prev)
+{
+	return HAS_FLAG(resp, ACK) && resp->ack_num == prev->seq_num + prev->msg_len;
+}
+
 void print_packet_info(struct packet *p);
 void set_response_headers(struct packet* prev, struct packet* resp, int len);
 
