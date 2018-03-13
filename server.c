@@ -21,22 +21,28 @@ void send_packet(struct packet *p, int fd, struct sockaddr *addr)
     if (n < 0)
         error("sendto");
 
-    printf("Sending packet %d", p->seq_num);
-    if (HAS_FLAG(p, SYN))
-        printf(" SYN");
-    if (HAS_FLAG(p, FIN))
-        printf(" FIN");
-    printf("\n");
+    if(n > 0) {
+    	printf("Sending packet %d", p->seq_num);
+    	if (HAS_FLAG(p, SYN))
+        	printf(" SYN");
+    	if (HAS_FLAG(p, ACK))
+			printf(" ACK");
+    	if (HAS_FLAG(p, FIN))
+        	printf(" FIN");
+    	printf("\n");
+    }
 }
 
 // Receive packet from socket and print formatted output
-void recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
+int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
 {
     int n = recvfrom(fd, p, PACKET_SIZE, 0, addr, len);
     if (n < 0)
         error("recvfrom");
+    if (n > 0)
+    	printf("Receiving packet %d\n", p->ack_num);
 
-    printf("Receiving packet %d\n", p->ack_num);
+    return n;
 }
 
 int main(int argc, char *argv[])
@@ -65,11 +71,14 @@ int main(int argc, char *argv[])
         error("ERROR on binding");
 
     struct packet pkt_out, pkt_in;
-    while (1) {
+    while(1) {
         // Simple test loop sends 1-byte messages
-        recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
-        set_response_headers(&pkt_out, &pkt_in, 1);
-        send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+        int n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+        if(n > 0 && HAS_FLAG(&pkt_in, SYN)) {
+			memset(&pkt_out, 0, PACKET_HEADER_SIZE);
+        	set_response_headers(&pkt_out, &pkt_in, 0);
+        	send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+        }
     }
 
     close(sockfd);
