@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <errno.h>
 #include "packet.h"
 
@@ -45,7 +46,7 @@ int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
 
 int main(int argc, char *argv[])
 {
-    int sockfd, portno, n;
+    int sockfd, portno, n, fd;
     struct sockaddr_in serv_addr;
     socklen_t addr_len = sizeof(serv_addr);
     struct packet pkt_out, pkt_in;
@@ -100,19 +101,26 @@ int main(int argc, char *argv[])
             break;
     }
 
+    // Open
+    fd = open("received.data", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fd < 0)
+        error("open");
+
     while (1) {
         // Simple test loop sends ACK for each message received
         if (n > 0) {
             printf("Received %d bytes of data\n", pkt_in.msg_len);
+            n = write(fd, pkt_in.msg, pkt_in.msg_len);
             set_response_headers(&pkt_out, &pkt_in, 0);
             send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
         }
-        
+
         n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
 
         sleep(1);
     }
 
+    close(fd);
     close(sockfd);
     return 0;
 }

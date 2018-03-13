@@ -89,7 +89,14 @@ int main(int argc, char *argv[])
     }
 
     // Test to show client receiving data
-    set_response_headers(&pkt_out, &pkt_in, 69);
+    strcpy(pkt_out.msg, "Some test data\n");
+    set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
+    send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+
+    recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+    
+    strcpy(pkt_out.msg, "More test data\n");
+    set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
     send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
 
     close(sockfd);
