@@ -46,11 +46,11 @@ int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
 int main(int argc, char *argv[])
 {
     int sockfd, portno, n;
-    socklen_t addr_len;
     struct sockaddr_in serv_addr;
+    socklen_t addr_len = sizeof(serv_addr);
     struct packet pkt_out, pkt_in;
 
-    if (argc < 3) {
+    if (argc < 4) {
         fprintf(stderr,"Usage: ./client HOST PORT FILENAME\n");
         exit(1);
     }
@@ -96,15 +96,19 @@ int main(int argc, char *argv[])
         n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
 
         // Message was ACKed, start receiving file data
-        if (n > 0 && is_ack_for(&pkt_out, &pkt_in))
+        if (n > 0 && is_ack_for(&pkt_in, &pkt_out))
             break;
     }
 
     while (1) {
         // Simple test loop sends ACK for each message received
-        recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
-        set_response_headers(&pkt_out, &pkt_in, 0);
-        send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+        if (n > 0) {
+            printf("Received %d bytes of data\n", pkt_in.msg_len);
+            set_response_headers(&pkt_out, &pkt_in, 0);
+            send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+        }
+        
+        n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
 
         sleep(1);
     }

@@ -47,9 +47,9 @@ int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
 
 int main(int argc, char *argv[])
 {
-    int sockfd, portno;
-    socklen_t addr_len;
+    int sockfd, portno, n;
     struct sockaddr_in serv_addr;
+    socklen_t addr_len = sizeof(serv_addr);
 
     if (argc < 2) {
         fprintf(stderr,"ERROR, no port provided\n");
@@ -72,14 +72,25 @@ int main(int argc, char *argv[])
 
     struct packet pkt_out, pkt_in;
     while(1) {
-        // Simple test loop sends 1-byte messages
-        int n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+        // Wait to receive packet with SYN flag
+        n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
         if(n > 0 && HAS_FLAG(&pkt_in, SYN)) {
-			memset(&pkt_out, 0, PACKET_HEADER_SIZE);
+            // Respond with SYN-ACK
         	set_response_headers(&pkt_out, &pkt_in, 0);
         	send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+
+            // Received ACK
+            n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+            if (n > 0 && is_ack_for(&pkt_in, &pkt_out)) {
+                printf("Received filename: %s\n", pkt_in.msg);
+                break;
+            }
         }
     }
+
+    // Test to show client receiving data
+    set_response_headers(&pkt_out, &pkt_in, 69);
+    send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
 
     close(sockfd);
     return 0;
