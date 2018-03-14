@@ -38,8 +38,10 @@ int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
     int n = recvfrom(fd, p, PACKET_SIZE, 0, addr, len);
     if (n < 0 && errno != EAGAIN)
         error("recvfrom");
-    if (n > 0)
+    if (n > 0) {
         printf("Receiving packet %d\n", p->seq_num);
+        print_packet_info(p);
+    }
 
     return n;
 }
@@ -86,7 +88,7 @@ int main(int argc, char *argv[])
 
         // If SYN-ACK is received, we can start sending messages
         if (n > 0 && HAS_FLAG(&pkt_in, SYN) && HAS_FLAG(&pkt_in, ACK))
-            break;
+			break;
     }
 
     // Send requested filename
@@ -102,7 +104,7 @@ int main(int argc, char *argv[])
     }
 
     // Open
-    fd = open("received.data", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    fd = open("received.data", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH | O_APPEND);
     if (fd < 0)
         error("open");
 

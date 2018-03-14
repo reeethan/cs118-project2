@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <fcntl.h>
 #include "packet.h"
 
 void error(char *msg)
@@ -39,8 +40,10 @@ int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
     int n = recvfrom(fd, p, PACKET_SIZE, 0, addr, len);
     if (n < 0)
         error("recvfrom");
-    if (n > 0)
+    if (n > 0) {
     	printf("Receiving packet %d\n", p->ack_num);
+      print_packet_info(p);
+    }
 
     return n;
 }
@@ -88,16 +91,21 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Test to show client receiving data
-    strcpy(pkt_out.msg, "Some test data\n");
-    set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
-    send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+    int fd = open(pkt_in.msg, O_RDONLY);
+    if(fd < 0) { // if file does not exist, send back a 404 error not found
+    	strcpy(pkt_out.msg, "404 Not Found\n");
+    	set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
+      send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+    }
 
-    recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
-    
-    strcpy(pkt_out.msg, "More test data\n");
-    set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
-    send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+    // send a message sized packet as long as there is data to send
+    while(read(fd, pkt_out.msg, MSG_SIZE) > 0) {
+      set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
+      send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+
+      recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+    }
+    exit(0);
 
     close(sockfd);
     return 0;
