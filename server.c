@@ -10,6 +10,7 @@
 #include "packet.h"
 #include "pwrapper.h"
 #define WIN_SZ 5
+#define TIMEOUT 500
 
 void error(char *msg)
 {
@@ -44,12 +45,19 @@ int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
     if (n < 0)
         error("recvfrom");
     if (n > 0) {
-    	printf("Receiving packet %d\n", p->ack_num);
-      //print_packet_info(p);
+    	printf("Receiving packet %d", p->ack_num);
+    	if (HAS_FLAG(p, SYN))
+        	printf(" SYN");
+    	if (HAS_FLAG(p, ACK))
+			printf(" ACK");
+    	if (HAS_FLAG(p, FIN))
+        	printf(" FIN");
+    	printf("\n");
     }
 
     return n;
 }
+
 
 /* Queue state varaibles */
 int front = 0;
@@ -58,10 +66,6 @@ int itemCount = 0;
 struct pwrapper* win[WIN_SZ];
 
 /* Queue Operations */
-struct pwrapper winPeek() {
-   return *win[front];
-}
-
 int winEmpty() {
   return itemCount == 0;
 }
@@ -72,6 +76,10 @@ int winFull() {
 
 int winSz() {
   return itemCount;
+}
+
+struct pwrapper* winPeek() {
+   return winEmpty() ? NULL : win[front];
 }
 
 void winPush(struct pwrapper* data) {
@@ -85,8 +93,9 @@ void winPush(struct pwrapper* data) {
   }
 }
 
-struct pwrapper winPop() {
-  struct pwrapper data = *win[front++];
+struct pwrapper* winPop() {
+  if(!winPeek()) return NULL;
+  struct pwrapper* data = win[front++];
 
   if(front == WIN_SZ) {
     front = 0;
@@ -100,17 +109,57 @@ struct pwrapper winPop() {
 void winDump() {
   if(!winEmpty()) {
     printf("----- CONTENTS OF THE WINDOW -----\n");
-    int i = front;
-    while(i <= rear) {
+    int i = (front == 0) ? (WIN_SZ - 1) : front - 1;
+
+    do {
+      i = (i == WIN_SZ - 1) ? 0 : i + 1;
       printWrapper(win[i]);
-      if(i == (WIN_SZ - 1)) i = 0;
-      else i++;
-    }
+    } while(i != rear);
+
+    printf("----------------------------------\n\n");
   }
   else
     printf("WINDOW IS EMPTY\n");
 }
 
+void markPackets(int ack) {
+  if(!winEmpty()) {
+    int i = (front == 0) ? (WIN_SZ - 1) : front - 1;
+
+    do {
+      i = (i == WIN_SZ - 1) ? 0 : i + 1;
+      if(win[i]->packet->seq_num == ack) win[i]->completed = 1;
+    } while(i != rear);
+  }
+}
+
+int sweepPackets() {
+  if(!winEmpty() && win[front]->completed) {
+    struct pwrapper* temp = winPop();
+    return 1;
+  }
+  else {
+    return 0;
+  }
+}
+
+struct packet* getTimedOutPacket() {
+  if(!winEmpty()) {
+    TIMESTAMP currTime = getTime();
+    int i = (front == 0) ? (WIN_SZ - 1) : front - 1;
+
+    do {
+      i = (i == WIN_SZ - 1) ? 0 : i + 1;
+      // if elapsed time is greater than 500 and its not completed, return that
+      if(currTime - win[i]->ts >= TIMEOUT && !win[i]->completed) {
+        printf("PACKET TIMED OUT\n");
+        return win[i]->packet;
+      }
+    } while(i != rear);
+  }
+  // if no such packet has timed out, return NULL
+  return NULL;
+}
 int main(int argc, char *argv[])
 {
     int sockfd, portno, n;
@@ -165,7 +214,10 @@ int main(int argc, char *argv[])
     int eof = 0; // end of file is false
     while(!eof) {
       if(!winFull() && !eof) {
-        if(read(fd, pkt_out.msg, MSG_SIZE) > 0) {
+        memset(pkt_out.msg, 0, MSG_SIZE);
+        int n = read(fd, pkt_out.msg, MSG_SIZE - 1);
+        if(n > 0) {
+          //printf("DATA TO SEND:\n%s\n", pkt_out.msg);
           set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
           send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
 
@@ -173,17 +225,35 @@ int main(int argc, char *argv[])
           struct pwrapper* pTemp = createPwrapper(&pkt_out);
           winPush(pTemp);
           winDump();
-
-          recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
-
-          // search window for packet with ACK # received from client
-          // iteratively check the front of the window for completed PACKETs
-          // pop until you reach an uncomepleted paket. 
         }
         else eof = 1;
       }
-    }
+      // have a function that returns a pointer to the first packet whose elapsed time is greater than 500 ms
+      // or returns null if that doesnt exist
+      struct packet* packetToRetransmit = getTimedOutPacket();
+      if(packetToRetransmit) {
+        set_response_headers(packetToRetransmit, &pkt_in, strlen(packetToRetransmit->msg));
+        send_packet(packetToRetransmit, sockfd, (struct sockaddr *) &serv_addr);
+      }
 
+      recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+
+      // mark the appropriate packet as completed
+      markPackets(pkt_in.ack_num);
+      printf("AFTER MARKING\n");
+      winDump();
+
+      // Remove completed packets from the front until you run into an incompleted packet
+      while(sweepPackets());
+      printf("AFTER SWEEPING\n");
+      winDump();
+    }
+    /* SEND FIN */
+    set_response_headers(&pkt_out, &pkt_in, 0);
+    SET_FLAG(&pkt_out, FIN);
+    send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+
+    close(fd);
     close(sockfd);
     return 0;
 }

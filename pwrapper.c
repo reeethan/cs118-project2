@@ -10,7 +10,7 @@ TIMESTAMP getTime() {
 
 void printWrapper(struct pwrapper* p) {
   printf("=== PACKET WRAPPER ===\n");
-  print_packet_info(&p->packet);
+  print_packet_info(p->packet);
   printf("STATUS: ");
   if(p->completed) printf("PACKET CONFIRMED!\n");
   else printf("PACKET NOT CONFIRMED\n");
@@ -22,7 +22,7 @@ struct pwrapper* createPwrapper(struct packet* pkt){
   struct pwrapper* p = (struct pwrapper *) malloc(sizeof(struct pwrapper));
   p->completed = 0;
   p->ts = getTime();
-  p->packet = *pkt;
+  p->packet = pkt;
 
   return p;
 }

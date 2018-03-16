@@ -11,7 +11,7 @@
 struct pwrapper {
   char completed;
   TIMESTAMP ts;
-  struct packet packet;
+  struct packet* packet;
 };
 
 TIMESTAMP getTime(); // GETS CURRENT TIME
