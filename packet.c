@@ -17,28 +17,27 @@ void print_packet_info(struct packet *p)
 }
 
 // Set the headers of resp to form a response to prev with a msg of len bytes
-void set_response_headers(struct packet* resp, struct packet* prev, int len)
+void set_response_headers(struct packet *resp, struct packet *prev, int len)
 {
 	memset(resp, 0, PACKET_HEADER_SIZE); // Reset all headers
 
 	SET_FLAG(resp, ACK);
 	resp->msg_len = len;
-	resp->seq_num = prev->ack_num;
+	resp->seq_num = prev->ack_num % SEQ_NUM_MAX;
 	resp->ack_num = prev->seq_num + prev->msg_len;
 
-	if (HAS_FLAG(prev, SYN)) {
+	if (HAS_FLAG(prev, SYN) || HAS_FLAG(prev, FIN))
 		resp->ack_num += 1;
 
-		if (!HAS_FLAG(prev, ACK))
-			SET_FLAG(resp, SYN);
-	}
+	if (HAS_FLAG(prev, SYN) && !HAS_FLAG(prev, ACK))
+		SET_FLAG(resp, SYN);
 }
 
 // Returns 1 if resp acknowledges prev, otherwise 0
-int is_ack_for(struct packet* resp, struct packet* prev)
+int is_ack_for(struct packet *resp, struct packet *prev)
 {
 	int ack_num = prev->seq_num + prev->msg_len;
-	if (HAS_FLAG(prev, SYN))
+	if (HAS_FLAG(prev, SYN) || HAS_FLAG(prev, FIN))
 		ack_num += 1;
 	return HAS_FLAG(resp, ACK) && resp->ack_num == ack_num;
 }

@@ -9,6 +9,7 @@
 #define PACKET_SIZE 1024
 #define PACKET_HEADER_SIZE (4 * sizeof(int))
 #define MSG_SIZE (PACKET_SIZE - PACKET_HEADER_SIZE)
+#define RECV_WINDOW 5
 
 #define FLAG_SYN 0x1
 #define FLAG_ACK 0x2
@@ -26,10 +27,8 @@ struct packet {
 	char msg[MSG_SIZE];
 };
 
-int is_ack_for(struct packet* resp, struct packet* prev);
-
-
+int is_ack_for(struct packet *resp, struct packet *prev);
 void print_packet_info(struct packet *p);
-void set_response_headers(struct packet* prev, struct packet* resp, int len);
+void set_response_headers(struct packet *prev, struct packet *resp, int len);
 
 #endif /* PACKET_H */
