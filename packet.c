@@ -24,7 +24,7 @@ void set_response_headers(struct packet *resp, struct packet *prev, int len)
 	SET_FLAG(resp, ACK);
 	resp->msg_len = len;
 	resp->seq_num = prev->ack_num % SEQ_NUM_MAX;
-	resp->ack_num = prev->seq_num + prev->msg_len;
+	resp->ack_num = prev->seq_num;
 
 	if (HAS_FLAG(prev, SYN) || HAS_FLAG(prev, FIN))
 		resp->ack_num += 1;
