@@ -8,12 +8,15 @@
 #include <signal.h>
 #include <fcntl.h>
 #include "packet.h"
+#include "pwrapper.h"
+#define WIN_SZ 5
 
 void error(char *msg)
 {
     perror(msg);
     exit(1);
 }
+
 
 // Send packet to socket and print formatted output
 void send_packet(struct packet *p, int fd, struct sockaddr *addr)
@@ -42,10 +45,70 @@ int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
         error("recvfrom");
     if (n > 0) {
     	printf("Receiving packet %d\n", p->ack_num);
-      print_packet_info(p);
+      //print_packet_info(p);
     }
 
     return n;
+}
+
+/* Queue state varaibles */
+int front = 0;
+int rear = -1;
+int itemCount = 0;
+struct pwrapper* win[WIN_SZ];
+
+/* Queue Operations */
+struct pwrapper winPeek() {
+   return *win[front];
+}
+
+int winEmpty() {
+  return itemCount == 0;
+}
+
+int winFull() {
+  return itemCount == WIN_SZ;
+}
+
+int winSz() {
+  return itemCount;
+}
+
+void winPush(struct pwrapper* data) {
+  if(!winFull()) {
+    if(rear == WIN_SZ-1) {
+       rear = -1;
+    }
+
+    win[++rear] = data;
+    itemCount++;
+  }
+}
+
+struct pwrapper winPop() {
+  struct pwrapper data = *win[front++];
+
+  if(front == WIN_SZ) {
+    front = 0;
+  }
+
+  itemCount--;
+  return data;
+}
+
+/* Display the contents of window */
+void winDump() {
+  if(!winEmpty()) {
+    printf("----- CONTENTS OF THE WINDOW -----\n");
+    int i = front;
+    while(i <= rear) {
+      printWrapper(win[i]);
+      if(i == (WIN_SZ - 1)) i = 0;
+      else i++;
+    }
+  }
+  else
+    printf("WINDOW IS EMPTY\n");
 }
 
 int main(int argc, char *argv[])
@@ -98,14 +161,28 @@ int main(int argc, char *argv[])
       send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
     }
 
-    // send a message sized packet as long as there is data to send
-    while(read(fd, pkt_out.msg, MSG_SIZE) > 0) {
-      set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
-      send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+    // send a message sized packet as long as there is data to send and window isnt full
+    int eof = 0; // end of file is false
+    while(!eof) {
+      if(!winFull() && !eof) {
+        if(read(fd, pkt_out.msg, MSG_SIZE) > 0) {
+          set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
+          send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
 
-      recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+          /* save packet wrapper to the window */
+          struct pwrapper* pTemp = createPwrapper(&pkt_out);
+          winPush(pTemp);
+          winDump();
+
+          recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+
+          // search window for packet with ACK # received from client
+          // iteratively check the front of the window for completed PACKETs
+          // pop until you reach an uncomepleted paket. 
+        }
+        else eof = 1;
+      }
     }
-    exit(0);
 
     close(sockfd);
     return 0;

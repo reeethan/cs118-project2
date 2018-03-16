@@ -3,3 +3,5 @@ server
 *.swp
 *.gch
 received.data
+playground.c
+a.out
