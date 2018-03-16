@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
 
     rbuf.base = rbuf.last_pkt->seq_num;
     while (!HAS_FLAG(rbuf.last_pkt, FIN)) {
-        if (n > 0 && rbuf.last_pkt->seq_num >= rbuf.base) {
+        if (n > 0 && rbuf.last_pkt->seq_num >= rbuf.base % SEQ_NUM_MAX) {
             send_response(&rbuf, sockfd, (struct sockaddr *) &serv_addr, NULL);
 
             if (rbuf.last_pkt->seq_num == rbuf.base % SEQ_NUM_MAX) {
