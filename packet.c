@@ -23,11 +23,7 @@ void set_response_headers(struct packet *resp, struct packet *prev, int len)
 
 	SET_FLAG(resp, ACK);
 	resp->msg_len = len;
-	resp->seq_num = prev->ack_num + 1;
 	resp->ack_num = prev->seq_num;
-
-	if (HAS_FLAG(prev, SYN) || HAS_FLAG(prev, FIN))
-		resp->ack_num += 1;
 
 	if (HAS_FLAG(prev, SYN) && !HAS_FLAG(prev, ACK))
 		SET_FLAG(resp, SYN);
@@ -36,8 +32,5 @@ void set_response_headers(struct packet *resp, struct packet *prev, int len)
 // Returns 1 if resp acknowledges prev, otherwise 0
 int is_ack_for(struct packet *resp, struct packet *prev)
 {
-	int ack_num = prev->seq_num;
-	if (HAS_FLAG(prev, SYN) || HAS_FLAG(prev, FIN))
-		ack_num += 1;
-	return HAS_FLAG(resp, ACK) && resp->ack_num == ack_num;
+	return HAS_FLAG(resp, ACK) && resp->ack_num == prev->ack_num;
 }

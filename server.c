@@ -212,14 +212,17 @@ int main(int argc, char *argv[])
 
     // send a message sized packet as long as there is data to send and window isnt full
     int eof = 0; // end of file is false
+    int current_seq = 0;
     while(!eof) {
       if(!winFull() && !eof) {
         memset(pkt_out.msg, 0, MSG_SIZE);
-        int n = read(fd, pkt_out.msg, MSG_SIZE - 1);
+        int n = read(fd, pkt_out.msg, MSG_SIZE);
         if(n > 0) {
           //printf("DATA TO SEND:\n%s\n", pkt_out.msg);
-          set_response_headers(&pkt_out, &pkt_in, strlen(pkt_out.msg));
+          set_response_headers(&pkt_out, &pkt_in, n);
+          pkt_out.seq_num = current_seq;
           send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+          current_seq = (current_seq + n) % SEQ_NUM_MAX;
 
           /* save packet wrapper to the window */
           struct pwrapper* pTemp = createPwrapper(&pkt_out);
@@ -232,7 +235,6 @@ int main(int argc, char *argv[])
       // or returns null if that doesnt exist
       struct packet* packetToRetransmit = getTimedOutPacket();
       if(packetToRetransmit) {
-        set_response_headers(packetToRetransmit, &pkt_in, strlen(packetToRetransmit->msg));
         send_packet(packetToRetransmit, sockfd, (struct sockaddr *) &serv_addr);
       }
 
