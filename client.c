@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -28,7 +27,7 @@ struct recv_buffer {
 struct packet *get_free_pkt(struct recv_buffer *rbuf)
 {
     struct packet *pkt;
-    for (pkt = rbuf->packets; pkt <= rbuf->packets + RECV_WINDOW; pkt++)
+    for (pkt = rbuf->packets; pkt < rbuf->packets + RECV_WINDOW; pkt++)
         if (pkt->seq_num == -1)
             break;
 
@@ -88,17 +87,9 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); // create socket
+    sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP); // create socket
     if (sockfd < 0)
         error("ERROR opening socket");
-
-    // Set receive timeout of 500ms
-    struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 500000;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-        error("setsockopt");
-    }
 
     memset((char *) &serv_addr, 0, sizeof(serv_addr)); // reset memory
 

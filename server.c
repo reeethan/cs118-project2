@@ -7,6 +7,7 @@
 #include <string.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "packet.h"
 #include "pwrapper.h"
 #define WIN_SZ 5
@@ -42,7 +43,7 @@ void send_packet(struct packet *p, int fd, struct sockaddr *addr)
 int recv_packet(struct packet *p, int fd, struct sockaddr *addr, socklen_t *len)
 {
     int n = recvfrom(fd, p, PACKET_SIZE, 0, addr, len);
-    if (n < 0)
+    if (n < 0 && errno != EAGAIN)
         error("recvfrom");
     if (n > 0) {
     	printf("Receiving packet %d", p->ack_num);
@@ -171,7 +172,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); // create socket
+    sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP); // create socket
     if (sockfd < 0)
         error("ERROR opening socket");
     memset((char *) &serv_addr, 0, sizeof(serv_addr)); // reset memory
