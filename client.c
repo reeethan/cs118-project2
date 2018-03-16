@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -41,11 +42,16 @@ void send_packet(struct packet *p, int fd, struct sockaddr *addr)
     if (n < 0)
         error("sendto");
 
-    printf("Sending packet %d", p->ack_num);
+    printf("Sending packet");
+
     if (HAS_FLAG(p, SYN))
         printf(" SYN");
+    else
+        printf(" %d", p->ack_num);
+
     if (HAS_FLAG(p, FIN))
         printf(" FIN");
+
     printf("\n");
 }
 
@@ -66,7 +72,7 @@ int recv_packet(struct recv_buffer *rbuf, int fd, struct sockaddr *addr, socklen
 
 void send_response(struct recv_buffer *rbuf, int fd, struct sockaddr *addr, char *msg)
 {
-    int msg_len = msg ? strlen(msg) : 0;
+    int msg_len = msg ? strlen(msg) + 1 : 0;
     if (msg)
         strcpy(rbuf->pkt_out.msg, msg);
 
@@ -87,9 +93,17 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP); // create socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); // create socket
     if (sockfd < 0)
         error("ERROR opening socket");
+
+    // Set small receive timeout
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 100;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        error("setsockopt");
+    }
 
     memset((char *) &serv_addr, 0, sizeof(serv_addr)); // reset memory
 
@@ -132,9 +146,8 @@ int main(int argc, char *argv[])
         error("open");
 
     rbuf.base = rbuf.last_pkt->seq_num;
-    
     while (!HAS_FLAG(rbuf.last_pkt, FIN)) {
-        if (n > 0) {
+        if (n > 0 && rbuf.last_pkt->seq_num >= rbuf.base) {
             send_response(&rbuf, sockfd, (struct sockaddr *) &serv_addr, NULL);
 
             if (rbuf.last_pkt->seq_num == rbuf.base % SEQ_NUM_MAX) {

@@ -172,9 +172,18 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    sockfd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP); // create socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); // create socket
     if (sockfd < 0)
         error("ERROR opening socket");
+
+    // Set small receive timeout
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 100;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        error("setsockopt");
+    }
+
     memset((char *) &serv_addr, 0, sizeof(serv_addr)); // reset memory
 
     // fill in address info
@@ -213,7 +222,7 @@ int main(int argc, char *argv[])
 
     // send a message sized packet as long as there is data to send and window isnt full
     int eof = 0; // end of file is false
-    int current_seq = 0;
+    int current_seq = pkt_in.ack_num + 1;
     while(!eof) {
       if(!winFull() && !eof) {
         memset(pkt_out.msg, 0, MSG_SIZE);
@@ -253,6 +262,7 @@ int main(int argc, char *argv[])
     }
     /* SEND FIN */
     set_response_headers(&pkt_out, &pkt_in, 0);
+    pkt_out.seq_num = current_seq + 1;
     SET_FLAG(&pkt_out, FIN);
     send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
 

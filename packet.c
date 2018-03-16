@@ -32,5 +32,5 @@ void set_response_headers(struct packet *resp, struct packet *prev, int len)
 // Returns 1 if resp acknowledges prev, otherwise 0
 int is_ack_for(struct packet *resp, struct packet *prev)
 {
-	return HAS_FLAG(resp, ACK) && resp->ack_num == prev->ack_num;
+	return HAS_FLAG(resp, ACK) && resp->ack_num == prev->seq_num;
 }
