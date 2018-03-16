@@ -29,7 +29,7 @@ struct packet *get_free_pkt(struct recv_buffer *rbuf)
 {
     struct packet *pkt;
     for (pkt = rbuf->packets; pkt < rbuf->packets + RECV_WINDOW; pkt++)
-        if (pkt->seq_num == -1)
+        if (pkt->seq_num < rbuf->base)
             break;
 
     return pkt;
@@ -66,6 +66,10 @@ int recv_packet(struct recv_buffer *rbuf, int fd, struct sockaddr *addr, socklen
         printf("Receiving packet %d\n", p->seq_num);
         rbuf->last_pkt = (struct packet *) p;
     }
+
+    for (p = rbuf->packets; p < rbuf->packets + RECV_WINDOW; p++)
+        if (p != rbuf->last_pkt && p->seq_num == rbuf->last_pkt->seq_num)
+            p->seq_num = -1;
     
     return n;
 }
