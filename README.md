@@ -2,7 +2,7 @@
 Destin Raymundo, 904852907
 
 ### Student 2:
-
+Ethan Ward, 304635336
 
 # High-Level Project Description
 Using C, we implemented a reliable transfer protocol built on UDP. Our implementation uses the Selective Repeat window-based protocol to ensure reliable data transfer. We wrote two programs, `client` and `server`.  The client program acts like a client application requesting a file from the server. The server program opens the file in its local directory and attempts to send it back in packets. While the two programs communicate with each other through unreliable UDP, the Selective Repeat protocol ensures reliability.
@@ -28,6 +28,15 @@ The implementation of the server can be broken down into a series of steps:
 8) Steps 5 to 7 are repeated until the entire final is read and transmitted.
 
 # Client Implementation
+The steps the client follows are:
+
+1) The client attempts to initiate a connection by sending a packet with the SYN flag.
+
+2) When a SYN-ACK packet is received, the client sends the filename argument as the message of the next packet. The packet is sent repeatedly until it is acknowledged with the first data packet
+
+3) The client now continues receiving packets and sending ACKs for them, storing received packets in a `struct recv_buffer` which has 5 slots for packets along with some context information including the number of bytes written to the received.data file. Each time a packet is received which has a sequence number equal to the next expected byte, the client writes its data to the file then iterates through the buffer writing data until the next expected byte cannot be found. The next slot to receive data into is chosen by finding the first packet in the buffer whose sequence number is lower than the number of bytes written, so writing a packet's data automatically "frees" its buffer space. If a packet is received that contains unwritten data but is a duplicate of an already buffered packet, its sequence number is manually set to -1 so its buffer space can be reused.
+
+4) When a packet with FIN is received, the client calculates the final byte number and continues receiving packets as described above until the number of bytes written is equal to the final byte.
 
 # Issues and Roadblocks
 - The project spec required that ACK and SEQ numbers are defined at a byte granularity rather than a packet granularity. This way of thinking is different from what we practiced in class, so we encountered some slowdowns while developing.
