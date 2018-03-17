@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <netdb.h>
 #include <fcntl.h>
 #include <errno.h>
 #include "packet.h"
@@ -88,7 +89,7 @@ int main(int argc, char *argv[])
 {
     int sockfd, portno, n, fd;
     struct sockaddr_in serv_addr;
-    socklen_t addr_len = sizeof(serv_addr);
+    socklen_t addr_len = sizeof(struct sockaddr_in);
 
     struct recv_buffer rbuf;
 
@@ -109,12 +110,21 @@ int main(int argc, char *argv[])
         error("setsockopt");
     }
 
-    memset((char *) &serv_addr, 0, sizeof(serv_addr)); // reset memory
+    struct addrinfo hints, *info;
+    memset(&hints, 0, sizeof(hints));
 
     // fill in address info
     portno = atoi(argv[2]);
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_protocol = IPPROTO_UDP;
+
+    n = getaddrinfo(argv[1], NULL, &hints, &info);
+    if (n != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(n));
+        exit(1);
+    }
+    serv_addr = * (struct sockaddr_in *) info->ai_addr;
     serv_addr.sin_port = htons(portno);
 
     // Initialize receive buffer
@@ -151,7 +161,7 @@ int main(int argc, char *argv[])
 
     rbuf.base = rbuf.last_pkt->seq_num;
     while (!HAS_FLAG(rbuf.last_pkt, FIN)) {
-        if (n > 0 && rbuf.last_pkt->seq_num >= rbuf.base % SEQ_NUM_MAX) {
+        if (n > 0) {
             send_response(&rbuf, sockfd, (struct sockaddr *) &serv_addr, NULL);
 
             if (rbuf.last_pkt->seq_num == rbuf.base % SEQ_NUM_MAX) {
@@ -163,7 +173,6 @@ int main(int argc, char *argv[])
                         if (n < 0)
                             error("write");
 
-                        printf("Wrote bytes %lld-%lld\n", rbuf.base, rbuf.base + n);
                         rbuf.base += n;
                         pkt->seq_num = -1;
 
