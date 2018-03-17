@@ -198,17 +198,19 @@ int main(int argc, char *argv[])
         error("ERROR on binding");
 
     struct packet pkt_out, pkt_in;
+    memset(&pkt_out, 0, PACKET_HEADER_SIZE);
     while(1) {
         // Wait to receive packet with SYN flag
         n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
-        if(n > 0 && HAS_FLAG(&pkt_in, SYN)) {
-            // Respond with SYN-ACK
-        	set_response_headers(&pkt_out, &pkt_in, 0);
-        	send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+        if(n > 0) {
+            if (HAS_FLAG(&pkt_in, SYN)) {
+                // Respond with SYN-ACK
+                set_response_headers(&pkt_out, &pkt_in, 0);
+                send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
 
-            // Received ACK
-            n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
-            if (n > 0 && is_ack_for(&pkt_in, &pkt_out)) {
+                // Received ACK
+                n = recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
+            } else if (is_ack_for(&pkt_in, &pkt_out)) {
                 printf("Received filename: %s\n", pkt_in.msg);
                 break;
             }
