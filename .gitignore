@@ -5,3 +5,6 @@ server
 received.data
 playground.c
 a.out
+test_oneMB.txt
+temp.txt
+test.data
