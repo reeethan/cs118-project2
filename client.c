@@ -70,7 +70,7 @@ int recv_packet(struct recv_buffer *rbuf, int fd, struct sockaddr *addr, socklen
     for (p = rbuf->packets; p < rbuf->packets + RECV_WINDOW; p++)
         if (p != rbuf->last_pkt && p->seq_num == rbuf->last_pkt->seq_num)
             p->seq_num = -1;
-    
+
     return n;
 }
 
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     int sockfd, portno, n, fd;
     struct sockaddr_in serv_addr;
     socklen_t addr_len = sizeof(serv_addr);
-    
+
     struct recv_buffer rbuf;
 
     if (argc < 4) {
@@ -162,23 +162,23 @@ int main(int argc, char *argv[])
                         int n = write(rbuf.dest_fd, pkt->msg, pkt->msg_len);
                         if (n < 0)
                             error("write");
-                        
-                        printf("Wrote bytes %d-%d\n", rbuf.base, rbuf.base + n);
+
+                        printf("Wrote bytes %lld-%lld\n", rbuf.base, rbuf.base + n);
                         rbuf.base += n;
                         pkt->seq_num = -1;
-                        
+
                         if (pkt == start)
                             start++;
                         pkt = start;
                     } else pkt++;
             }
-            
+
         }
 
         n = recv_packet(&rbuf, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
     }
 
-    printf("End of file, received %d bytes\n", rbuf.base);
+    printf("End of file, received %lld bytes\n", rbuf.base);
 
     close(rbuf.dest_fd);
     close(sockfd);

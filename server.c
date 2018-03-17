@@ -152,8 +152,10 @@ struct packet* getTimedOutPacket() {
     do {
       i = (i == WIN_SZ - 1) ? 0 : i + 1;
       // if elapsed time is greater than 500 and its not completed, return that
+      //printf("ELAPSED TIME FOR PACKET %d: %llu\n", win[i]->packet->seq_num, currTime - win[i]->ts); DEBUG
       if(currTime - win[i]->ts >= TIMEOUT && !win[i]->completed) {
-        printf("PACKET TIMED OUT\n");
+        //printf("PACKET TIMED OUT\n"); DEBUG
+        win[i]->ts = currTime;
         return win[i]->packet;
       }
     } while(i != rear);
@@ -225,19 +227,19 @@ int main(int argc, char *argv[])
     int current_seq = pkt_in.ack_num + 1;
     while(!eof) {
       if(!winFull() && !eof) {
-        memset(pkt_out.msg, 0, MSG_SIZE);
-        int n = read(fd, pkt_out.msg, MSG_SIZE);
+        struct packet* new_pkt_out = (struct packet *) malloc(sizeof(struct packet));
+        memset(new_pkt_out->msg, 0, MSG_SIZE);
+        int n = read(fd, new_pkt_out->msg, MSG_SIZE);
         if(n > 0) {
-          //printf("DATA TO SEND:\n%s\n", pkt_out.msg);
-          set_response_headers(&pkt_out, &pkt_in, n);
-          pkt_out.seq_num = current_seq;
-          send_packet(&pkt_out, sockfd, (struct sockaddr *) &serv_addr);
+          set_response_headers(new_pkt_out, &pkt_in, n);
+          new_pkt_out->seq_num = current_seq;
+          send_packet(new_pkt_out, sockfd, (struct sockaddr *) &serv_addr);
           current_seq = (current_seq + n) % SEQ_NUM_MAX;
 
           /* save packet wrapper to the window */
-          struct pwrapper* pTemp = createPwrapper(&pkt_out);
+          struct pwrapper* pTemp = createPwrapper(new_pkt_out);
           winPush(pTemp);
-          winDump();
+          //winDump(); DEBUG
         }
         else eof = 1;
       }
@@ -245,20 +247,27 @@ int main(int argc, char *argv[])
       // or returns null if that doesnt exist
       struct packet* packetToRetransmit = getTimedOutPacket();
       if(packetToRetransmit) {
+        //printf("***** GOT A TIMEOUT *****\n"); DEBUG
+        print_packet_info(packetToRetransmit);
         send_packet(packetToRetransmit, sockfd, (struct sockaddr *) &serv_addr);
+        //printf("*************************\n\n"); DEBUG
       }
 
       recv_packet(&pkt_in, sockfd, (struct sockaddr *) &serv_addr, &addr_len);
 
       // mark the appropriate packet as completed
       markPackets(pkt_in.ack_num);
+      /* DEBUG
       printf("AFTER MARKING\n");
       winDump();
+      */
 
       // Remove completed packets from the front until you run into an incompleted packet
       while(sweepPackets());
+      /* DEBUG
       printf("AFTER SWEEPING\n");
       winDump();
+      */
     }
     /* SEND FIN */
     set_response_headers(&pkt_out, &pkt_in, 0);
